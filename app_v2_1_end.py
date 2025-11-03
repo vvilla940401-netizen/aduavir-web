@@ -1,8 +1,3 @@
-=====================================
-# ADUAVIR 2.1.3 — Asistente Aduanal Inteligente (Tabla avanzada y resaltado)
-# Búsqueda por columnas y texto libre + campos destacados
-# =====================================
-
 import streamlit as st
 import pandas as pd
 import os
@@ -89,7 +84,7 @@ def load_normative_snippets():
         for fname in os.listdir(data_dir):
             path = os.path.join(data_dir, fname)
             if os.path.isfile(path):
-                base_text += f"\n=== {fname} ===\n"
+                base_text += f"\n# === {fname} ===\n"
                 try:
                     with open(path, "rb") as f:
                         content = f.read(80000)
@@ -152,4 +147,4 @@ if st.button("🔍 Interpretar error"):
             st.warning("⚠️ No se encontró el error en el catálogo.")
 
 st.markdown("---")
-st.caption("Desarrollado por Vanessa Villa © 2025 | ADUAVIR v2.1.3 — Solo catálogo y normativa"
+st.caption("Desarrollado por Vanessa Villa © 2025 | ADUAVIR v2.1.3 — Solo catálogo y normativa")
