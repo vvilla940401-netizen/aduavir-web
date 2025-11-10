@@ -170,17 +170,126 @@ query = st.text_input(
     placeholder="Ejemplo: 2 3 500 2 o tipo de cambio",
 )
 
+import io
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+
+# ---------- Función para exportar resultados a PDF con marca de agua ----------
+def export_results_to_pdf(df, title="Resultado ADUAVIR", watermark_text="ADUAVIR — CONFIDENCIAL"):
+    """
+    Genera un PDF (en memoria) con las primeras N filas del dataframe y una marca de agua.
+    Retorna bytesIO listo para descargar.
+    """
+    # Limitar filas para no exponer todo (ajustable)
+    MAX_ROWS_PDF = 50
+    df_to_print = df.head(MAX_ROWS_PDF).copy()
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=40, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph(title, styles["Title"]))
+    story.append(Spacer(1, 8))
+
+    # Tabla: primero la cabecera limpia
+    data = [list(df_to_print.columns)]
+    for _, row in df_to_print.iterrows():
+        data.append([str(x) for x in row.tolist()])
+
+    table = Table(data, repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#003366")),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+        ("GRID", (0,0), (-1,-1), 0.25, colors.grey),
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("FONTSIZE", (0,0), (-1, -1), 8),
+    ]))
+    story.append(table)
+    story.append(Spacer(1, 6))
+
+    # Pie con aviso
+    story.append(Paragraph("Generado desde ADUAVIR — Sólo resumen del resultado. No contiene catálogo completo.", styles["Italic"]))
+
+    # Construir PDF en el buffer
+    doc.build(story, onFirstPage=lambda canvas, doc: _draw_watermark(canvas, watermark_text),
+                    onLaterPages=lambda canvas, doc: _draw_watermark(canvas, watermark_text))
+    buffer.seek(0)
+    return buffer
+
+def _draw_watermark(canvas, text):
+    canvas.saveState()
+    canvas.setFont("Helvetica", 60)
+    canvas.setFillColorRGB(0.7, 0.7, 0.7, alpha=0.12)  # gris claro y algo transparente
+    canvas.translate(300, 160)
+    canvas.rotate(45)
+    canvas.drawCentredString(0, 0, text)
+    canvas.restoreState()
+
+# ---------- UI para búsqueda y visualización segura ----------
 if st.button("🔍 Interpretar error"):
     if not query.strip():
         st.warning("Por favor ingrese un código o descripción válida.")
     else:
         results = search_error(df_catalog, query)
 
-        if not results.empty:
-            st.success(f"🔎 Se encontraron {len(results)} coincidencias:")
+        # Si la búsqueda devolvió filas
+        if results is not None and not results.empty:
+            # Mostramos un número limitado de filas para evitar exponer todo el catálogo
+            MAX_DISPLAY_ROWS = 100
+            display_df = results.reset_index(drop=True).head(MAX_DISPLAY_ROWS)
 
-            # Mostrar las primeras columnas disponibles
-            st.dataframe(results.reset_index(drop=True).style.apply(highlight_matches, query=query, axis=1))
+            # Mostrar solo columnas relevantes (usar los originales si están disponibles)
+            # Si el dataframe tiene ._original_columns, reconstruimos nombres bonitos para la vista
+            if hasattr(results, "_original_columns"):
+                # mapeo: normalized -> original
+                norm_to_orig = {}
+                for orig in results._original_columns:
+                    key = re.sub(r'[^a-zA-Z0-9]', '', str(orig)).lower()
+                    norm_to_orig[key] = orig
+                # ordenar columnas por preferencia si existen
+                preferidas_norm = ["codigo", "clase", "normativaregistro", "camporelacionado", "errordescripcion", "solucion"]
+                cols_to_show = [norm_to_orig[c] for c in preferidas_norm if c in norm_to_orig]
+                # si no hay preferidas, tomar primeras 6 columnas
+                if not cols_to_show:
+                    cols_to_show = list(display_df.columns[:6])
+                # mapear display_df a columnas originales si están presentes
+                # Primero, si display_df tiene columnas normalizadas, intentar renombrarlas a originales
+                try:
+                    # busqueda de coincidencias por clave normalizada
+                    rename_map = {}
+                    for col in display_df.columns:
+                        key = re.sub(r'[^a-zA-Z0-9]', '', str(col)).lower()
+                        if key in norm_to_orig:
+                            rename_map[col] = norm_to_orig[key]
+                    display_df = display_df.rename(columns=rename_map)
+                except Exception:
+                    pass
+            else:
+                # no hay nombres originales: mostrar primeras 6 columnas
+                cols_to_show = list(display_df.columns[:6])
+
+            # finalmente recortar por las columnas elegidas (si existen)
+            cols_to_show = [c for c in cols_to_show if c in display_df.columns]
+            if cols_to_show:
+                safe_view = display_df[cols_to_show]
+            else:
+                safe_view = display_df
+
+            st.success(f"🔎 Se encontraron {len(results)} coincidencias (mostrando {len(safe_view)} filas).")
+            st.dataframe(safe_view)
+
+            # Botón para generar PDF del recorte (solo del resultado actual)
+            pdf_buffer = export_results_to_pdf(safe_view, title=f"ADUAVIR — Resultado para: {query}", watermark_text="ADUAVIR — CONFIDENCIAL")
+            st.download_button(
+                label="📄 Descargar comprobante (PDF) — solo resultado actual",
+                data=pdf_buffer,
+                file_name=f"aduavir_resultado_{query.replace(' ','_')}.pdf",
+                mime="application/pdf"
+            )
+
         else:
             st.warning("⚠️ No se encontró el error en el catálogo.")
 
