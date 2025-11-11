@@ -18,10 +18,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # -------------------------------------
 SINGLE_USER = {"user": "aduavir_admin", "password": "aduavir2025"}
 
-# Ruta del catálogo corregido (asegúrate de subirlo al repo)
+# Ruta del catálogo corregido
 CATALOG_PATH = "catalogo_errores_unificado_CORREGIDO.xlsx"
-# Logo en assets
-LOGO_PATH = "assets/logo_aduavir.png"
+
+# URL pública del logo desde GitHub
+LOGO_URL = "https://raw.githubusercontent.com/vvilla940401-netizen/aduavir-web/main/assets/logo_aduavir.png"
 
 # =====================================
 # ESTILOS Y HEADER
@@ -45,13 +46,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# header with logo (only show if logo exists)
-logo_html = ""
-if os.path.exists(LOGO_PATH):
-    logo_html = f'<div class="header"><img src="{LOGO_PATH}" alt="logo"><div><h1 class="app-title">ADUAVIR 2.1.7</h1><div class="app-sub">Su aliado en el cumplimiento</div></div></div>'
-else:
-    logo_html = '<div class="header"><div><h1 class="app-title">ADUAVIR 2.1.7</h1><div class="app-sub">Su aliado en el cumplimiento</div></div></div>'
-st.markdown(logo_html, unsafe_allow_html=True)
+# Header con logo remoto desde GitHub (Render-friendly)
+try:
+    st.markdown(
+        f"""
+        <div class="header">
+            <img src="{LOGO_URL}" alt="logo">
+            <div>
+                <h1 class="app-title">ADUAVIR 2.1.7</h1>
+                <div class="app-sub">Su aliado en el cumplimiento</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+except Exception:
+    st.markdown(
+        """
+        <div class="header">
+            <div>
+                <h1 class="app-title">ADUAVIR 2.1.7</h1>
+                <div class="app-sub">Su aliado en el cumplimiento</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 st.markdown('<div class="watermark">ADUAVIR</div>', unsafe_allow_html=True)
 
 # =====================================
@@ -62,10 +83,9 @@ def load_catalog(path=CATALOG_PATH):
     """Carga catálogo corregido (archivo preparado)"""
     try:
         df = pd.read_excel(path, dtype=str).fillna("")
-        # normalizar columna names a clave simple (por si quedan variaciones)
         def _norm_col(c):
             s = str(c).strip()
-            s = unicodedata.normalize('NFKD', s).encode('ASCII','ignore').decode('ASCII')
+            s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
             s = re.sub(r'[^A-Za-z0-9]', '', s).lower()
             return s
         df.columns = [_norm_col(c) for c in df.columns]
@@ -78,7 +98,7 @@ def normalize_text(text):
     if not isinstance(text, str):
         return ""
     s = text.lower()
-    s = unicodedata.normalize('NFKD', s).encode('ASCII','ignore').decode('ASCII')
+    s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
     s = re.sub(r"[^a-z0-9\s]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
@@ -91,30 +111,25 @@ def search_error(df, query, max_results=5):
     nums = re.findall(r"\d+", q)
     tokens = [t for t in q.split() if t]
 
-    # columnas de interés (normalizadas)
-    cols = [c for c in df.columns if any(k in c for k in ("codigo","clase","registro","campo","error","descripcion","solucion","observaciones"))]
+    cols = [c for c in df.columns if any(k in c for k in ("codigo", "clase", "registro", "campo", "error", "descripcion", "solucion", "observaciones"))]
     if not cols:
         cols = list(df.columns)
 
-    mask = pd.Series([False]*len(df), index=df.index)
+    mask = pd.Series([False] * len(df), index=df.index)
 
-    # 1) búsqueda literal en columnas relevantes (texto normalizado)
     for c in cols:
         try:
             mask |= df[c].astype(str).apply(normalize_text).str.contains(q, na=False)
         except Exception:
             pass
 
-    # 2) búsqueda por números individuales (701 etc)
     for n in nums:
         for c in cols:
             try:
-                # comparar como texto literal
                 mask |= df[c].astype(str).str.contains(n, na=False, regex=False)
             except Exception:
                 pass
 
-    # 3) búsqueda por tokens (cada palabra)
     for t in tokens:
         for c in cols:
             try:
@@ -123,8 +138,6 @@ def search_error(df, query, max_results=5):
                 pass
 
     results = df[mask].copy()
-    if results.empty:
-        return results.head(0)
     return results.head(max_results)
 
 # =====================================
@@ -140,7 +153,8 @@ def simple_login():
     st.write("**Acceso restringido — área de pruebas**")
     user = st.text_input("Usuario")
     pwd = st.text_input("Contraseña", type="password")
-    col1, col2 = st.columns([1,2])
+
+    col1, col2 = st.columns([1, 2])
     with col1:
         if st.button("Ingresar"):
             if user == SINGLE_USER["user"] and pwd == SINGLE_USER["password"]:
@@ -148,8 +162,6 @@ def simple_login():
                 st.rerun()
             else:
                 st.error("Usuario o contraseña incorrectos.")
-    with col2:
-        st.write(" ")
     st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
@@ -181,8 +193,7 @@ if st.button("Buscar"):
         if results is not None and not results.empty:
             st.markdown(f"**Consulta:** {query}")
             st.write(f"Se encontraron **{len(results)}** coincidencias (mostrando hasta 5).")
-            # elegir columnas para mostrar (si existen)
-            preferred = ["registro","codigo","clase","camporelacionado","errordescripcion","solucion","llenadoobservaciones","ejemplo","criteriorelacionado"]
+            preferred = ["registro", "codigo", "clase", "camporelacionado", "errordescripcion", "solucion", "llenadoobservaciones", "ejemplo", "criteriorelacionado"]
             show_cols = [c for c in preferred if c in results.columns]
             if not show_cols:
                 show_cols = list(results.columns[:6])
