@@ -292,7 +292,7 @@ def simple_login():
             if user == SINGLE_USER["user"] and pwd == SINGLE_USER["password"]:
                 st.session_state.logged_in = True
                 st.session_state.user = user
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Usuario o contraseña incorrectos.")
     with col2:
