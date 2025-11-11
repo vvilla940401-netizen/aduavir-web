@@ -103,41 +103,55 @@ def normalize_text(text):
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
-def search_error(df, query, max_results=5):
-    """Búsqueda robusta: acepta combos numéricos y texto parcial."""
+def search_error(df, query, max_results=50):
+    """Búsqueda precisa por coincidencias reales (limitada a 50 resultados)."""
     if df.empty or not query or not str(query).strip():
         return df.iloc[0:0]
+
     q = normalize_text(query)
     nums = re.findall(r"\d+", q)
     tokens = [t for t in q.split() if t]
 
-    cols = [c for c in df.columns if any(k in c for k in ("codigo", "clase", "registro", "campo", "error", "descripcion", "solucion", "observaciones"))]
+    # columnas relevantes
+    cols = [c for c in df.columns if any(k in c for k in (
+        "codigo", "clase", "registro", "campo", "error", "descripcion", "solucion", "observaciones"
+    ))]
     if not cols:
         cols = list(df.columns)
 
-    mask = pd.Series([False] * len(df), index=df.index)
+    mask = pd.Series(False, index=df.index)
 
+    # 1️⃣ coincidencia completa
     for c in cols:
         try:
             mask |= df[c].astype(str).apply(normalize_text).str.contains(q, na=False)
         except Exception:
             pass
 
+    # 2️⃣ coincidencia exacta por números
     for n in nums:
         for c in cols:
             try:
-                mask |= df[c].astype(str).str.contains(n, na=False, regex=False)
+                mask |= df[c].astype(str).str.contains(rf"\b{n}\b", na=False, regex=True)
             except Exception:
                 pass
 
+    # 3️⃣ coincidencia por tokens individuales
     for t in tokens:
         for c in cols:
             try:
-                mask |= df[c].astype(str).apply(normalize_text).str.contains(t, na=False)
+                mask |= df[c].astype(str).apply(normalize_text).str.contains(rf"\b{t}\b", na=False, regex=True)
             except Exception:
                 pass
 
     results = df[mask].copy()
+
+    # ordenar si hay columnas relevantes
+    for col in ["registro", "codigo"]:
+        if col in results.columns:
+            results.sort_values(by=col, inplace=True, ignore_index=True)
+            break
+
     return results.head(max_results)
 
 # =====================================
@@ -191,14 +205,16 @@ if st.button("Buscar"):
         results = search_error(df_catalog, query)
         st.markdown('<div class="result-card">', unsafe_allow_html=True)
         if results is not None and not results.empty:
+            total = len(results)
             st.markdown(f"**Consulta:** {query}")
-            st.write(f"Se encontraron **{len(results)}** coincidencias (mostrando hasta 5).")
-            preferred = ["registro", "codigo", "clase", "camporelacionado", "errordescripcion", "solucion", "llenadoobservaciones", "ejemplo", "criteriorelacionado"]
+            st.write(f"Se encontraron **{total}** coincidencias (mostrando hasta 50).")
+            preferred = ["registro", "codigo", "clase", "camporelacionado", "errordescripcion",
+                         "solucion", "llenadoobservaciones", "ejemplo", "criteriorelacionado"]
             show_cols = [c for c in preferred if c in results.columns]
             if not show_cols:
                 show_cols = list(results.columns[:6])
             display_df = results[show_cols].reset_index(drop=True)
-            st.dataframe(display_df, use_container_width=True, height=360)
+            st.dataframe(display_df, use_container_width=True, height=380)
         else:
             st.warning("No se encontraron coincidencias para la consulta.")
         st.markdown('</div>', unsafe_allow_html=True)
