@@ -1,5 +1,6 @@
 streamlit
 pandas
-python-dotenv
 openpyxl
+python-dotenv
+altair
 reportlab
