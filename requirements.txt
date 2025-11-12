@@ -1,8 +1,8 @@
 streamlit
 pandas
+openai
 openpyxl
 python-dotenv
-openai
 reportlab
 altair
 requests
