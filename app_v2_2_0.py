@@ -40,7 +40,7 @@ st.markdown(f"""
   background-repeat: no-repeat;
   background-position: center;
   background-size: 45%;
-  opacity: 0.08; /* más tenue */
+  opacity: 0.20; /* más visible */
 }}
 .result-card {{ background:#fff; padding:14px; border-radius:10px; margin-bottom:12px; }}
 .small-muted {{ color:#7b8a9a; font-size:13px; }}
@@ -265,7 +265,7 @@ with col2:
             display_df = results[show_cols].reset_index(drop=True).rename(columns=rename_map)
             st.markdown(f"**Consulta:** {query}")
             st.write(f"Se encontraron **{len(results)}** coincidencias (mostrando hasta 25).")
-            st.dataframe(display_df, use_container_width=True, height=420)
+            st.dataframe(display_df, use_container_width=True, height=700)
             log_query(current_user, col_for_log, query, len(results))
         else:
             st.warning("No se encontraron coincidencias para la consulta.")
