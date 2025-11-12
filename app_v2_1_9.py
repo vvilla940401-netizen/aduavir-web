@@ -65,25 +65,26 @@ st.markdown('<div class="watermark">ADUAVIR</div>', unsafe_allow_html=True)
 # ===========================
 @st.cache_data
 def load_catalog(path=CATALOG_PATH):
-    """Carga el catálogo y normaliza encabezados a claves simples."""
+    """Carga catálogo corregido (archivo preparado)"""
     try:
         df = pd.read_excel(path, dtype=str).fillna("")
+
+        # Crear un mapa entre nombres originales y normalizados
+        orig_map = {}
+        def _norm_col(c):
+            s = str(c).strip()
+            s_norm = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII')
+            s_norm = re.sub(r'[^A-Za-z0-9]', '', s_norm).lower()
+            orig_map[s_norm] = c  # guarda el nombre original
+            return s_norm
+
+        df.columns = [_norm_col(c) for c in df.columns]
+        df._orig_map = orig_map  # <-- Aquí se define el atributo antes de usarse
+
+        return df
     except Exception as e:
         st.error(f"⚠️ Error cargando catálogo: {e}")
         return pd.DataFrame()
-
-    def _norm_col(c):
-        s = str(c).strip()
-        s = unicodedata.normalize("NFKD", s).encode("ASCII", "ignore").decode("ASCII")
-        s = re.sub(r"[^A-Za-z0-9]", "", s).lower()
-        return s
-
-    # guardar mapeo normalizado -> original (para mostrar nombres bonitos)
-    orig_cols = list(df.columns)
-    norm_cols = [_norm_col(c) for c in orig_cols]
-    df.columns = norm_cols
-    df._orig_map = {n: o for n, o in zip(norm_cols, orig_cols)}
-    return df
 
 def normalize_text(text: str) -> str:
     if not isinstance(text, str):
