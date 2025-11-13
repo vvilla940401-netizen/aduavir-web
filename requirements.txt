@@ -1,8 +1,8 @@
 streamlit
 pandas
-openai==0.28
 openpyxl
 python-dotenv
 reportlab
 altair
 requests
+openai>=1.0.0
