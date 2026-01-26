@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 st.set_page_config(page_title="ADUAVIR 2.5.1", layout="wide")
 load_dotenv()
 
-CATALOG_PATH = "catalogo_errores_unificado_CORREGIDO.xlsx"
+CATALOG_PATH = "catalogo_errores_ADUAVIR_REGENERADO.xlsx"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 
 # ---------------- UTILS ----------------
